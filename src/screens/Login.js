@@ -1,14 +1,81 @@
-import React from 'react';
-import {View, Text, Dimensions, TouchableOpacity} from 'react-native';
+import React, {useState} from 'react';
+import {
+  View,
+  Text,
+  Dimensions,
+  TouchableOpacity,
+  ToastAndroid,
+} from 'react-native';
 import Background from '../components/Background';
 import {DARKGREEN} from '../constants/colors';
 import InputField from '../components/InputField';
 import CustomButton from '../components/CustomButton';
+import {postCall} from '../service/apiService';
+import {BASE_URL} from '../constants/apiURL';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Loader from '../components/Loader';
 
 const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
 const Login = props => {
+  const [data, setData] = useState({
+    email: '',
+    password: '',
+  });
+
+  const [loginData, setLoginData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const validateEmail = email => {
+    const emailRegex = /^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/;
+    return emailRegex.test(email);
+  };
+
+  const storeToken = async token => {
+    try {
+      await AsyncStorage.setItem('@token', token);
+    } catch (e) {
+      // saving error
+      console.log('Error: ', e);
+    }
+  };
+
+  const handleLogin = () => {
+    setIsLoading(true);
+    if (data.email === '' || data.password === '') {
+      ToastAndroid.show('Please enter Email/Password', ToastAndroid.SHORT);
+      setIsLoading(false);
+      return;
+    }
+
+    if (validateEmail(data.email)) {
+      postCall(`${BASE_URL}/api/auth/login`, data)
+        .then(res => {
+          console.log('response data login ===>> ', res);
+          storeToken(res?.data?.token);
+          setLoginData(res?.data);
+          setIsLoading(false);
+          props.navigation.reset({
+            index: 0,
+            routes: [{name: 'Dashboard'}],
+          });
+        })
+        .catch(err => {
+          console.log('Error: ', err.response.data);
+          setIsLoading(false);
+          ToastAndroid.show(err.response.data.message, ToastAndroid.SHORT);
+        });
+    } else {
+      ToastAndroid.show(
+        'Please enter a valid Email Address!',
+        ToastAndroid.SHORT,
+      );
+      setIsLoading(false);
+      return;
+    }
+  };
+
   return (
     <Background>
       <View
@@ -48,8 +115,16 @@ const Login = props => {
             Login to your account
           </Text>
 
-          <InputField placeholder={'Email'} keyboardType={'email-address'} />
-          <InputField placeholder={'Password'} secureTextEntry={true} />
+          <InputField
+            placeholder={'Email'}
+            keyboardType={'email-address'}
+            onChangeText={text => setData({...data, email: text})}
+          />
+          <InputField
+            placeholder={'Password'}
+            secureTextEntry={true}
+            onChangeText={text => setData({...data, password: text})}
+          />
 
           <View style={{marginBottom: 200}}></View>
 
@@ -58,7 +133,7 @@ const Login = props => {
             bgColor={DARKGREEN}
             btnLabel="Login"
             onPress={() => {
-              alert('Login to app');
+              handleLogin();
             }}
           />
 
@@ -81,6 +156,8 @@ const Login = props => {
           </View>
         </View>
       </View>
+
+      {isLoading && <Loader />}
     </Background>
   );
 };
